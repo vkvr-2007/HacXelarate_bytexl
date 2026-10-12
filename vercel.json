@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/index.js": { "maxDuration": 300 },
+    "api/ml.py": { "maxDuration": 300, "memory": 2048, "includeFiles": "{ml/brandml/**,ml/models/brandml.joblib,ml/models/metrics.json,ml/data/seed_corpus.json,ml/service.py,ml/train.py,public/seed-icons/**}" }
+  },
+  "rewrites": [
+    { "source": "/api/ml/(.*)", "destination": "/api/ml" },
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/((?!api/|assets/|seed-icons/).*)", "destination": "/index.html" }
+  ],
+  "crons": [{ "path": "/api/internal/cron", "schedule": "0 6 * * *" }],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' data: https:; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" }
+      ]
+    }
+  ]
+}

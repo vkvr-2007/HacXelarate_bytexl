@@ -1,0 +1,13 @@
+line-length = 240
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "B", "S", "UP"]
+ignore = [
+  "S101",  # assert is how pytest works
+  "S311",  # random is used for synthetic training data and backoff jitter, not security
+  "S603", "S607",
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S108", "B017"]

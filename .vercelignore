@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+node_modules
+ml/tests
+ml/data/feedback.jsonl
+tests
+**/__pycache__
+.pytest_cache

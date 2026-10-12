@@ -1,0 +1,42 @@
+{
+  "trainedAt": "2026-10-12T15:36:20+00:00",
+  "evaluation": "Held-out brands (20% of brands never seen in training)",
+  "trainRows": 4416,
+  "testRows": 1152,
+  "precision": 0.9739,
+  "recall": 0.9773,
+  "f1": 0.9756,
+  "rocAuc": 0.9809,
+  "accuracyByTechnique": {
+    "context": 1.0,
+    "exact": 0.973,
+    "fan": 0.977,
+    "homoglyph": 0.972,
+    "joined": 0.967,
+    "leet_suffix": 0.987,
+    "official_publisher": 0.972,
+    "other_brand": 0.978,
+    "partial": 0.987,
+    "prefix": 0.962,
+    "short_overlap": 0.978,
+    "spacing": 0.983,
+    "suffix": 0.969,
+    "suffix_typo": 0.951,
+    "typo": 0.964,
+    "unrelated": 0.978
+  },
+  "feedbackRows": 0,
+  "featureImportance": {
+    "name_partial": 0.3644,
+    "publisher_sim": 0.2087,
+    "benign_words": 0.1863,
+    "name_skeleton_sim": 0.082,
+    "name_token_best": 0.0691,
+    "other_words": 0.0277,
+    "scam_words": 0.0114,
+    "desc_brand_mention": 0.0109,
+    "impersonation_words": 0.0063,
+    "name_sim": 0.0062
+  },
+  "version": "brandml-gbm-20261012"
+}
