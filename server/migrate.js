@@ -23,7 +23,8 @@ export async function migrate(pool) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const pool = createPool(loadConfig());
+  // Schema changes can legitimately run longer than an API query, so migrations keep the connect timeout but no statement limit.
+  const pool = createPool({ ...loadConfig(), databaseStatementTimeoutMs: 0 });
   migrate(pool)
     .then((applied) => console.log(applied.length ? `Applied ${applied.join(', ')}` : 'Database is up to date'))
     .catch((error) => { console.error(`Migration failed: ${error.message}`); process.exitCode = 1; })

@@ -8,6 +8,9 @@ export function loadConfig(overrides = {}) {
     port: Number(env.PORT || 4000),
     databaseUrl: env.DATABASE_URL || '',
     databaseSsl: env.DATABASE_SSL === 'true' || /sslmode=require/.test(env.DATABASE_URL || ''),
+    // How long to wait for a database connection, and how long one statement may run (0 turns the statement limit off).
+    databaseConnectTimeoutMs: Number(env.DATABASE_CONNECT_TIMEOUT_MS || 8000),
+    databaseStatementTimeoutMs: Number(env.DATABASE_STATEMENT_TIMEOUT_MS || 30000),
     jwtSecret: env.JWT_SECRET || '',
     sessionHours: Number(env.SESSION_HOURS || 12),
     appOrigin: (env.APP_ORIGIN || '').replace(/\/$/, ''),

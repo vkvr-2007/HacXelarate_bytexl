@@ -10,6 +10,7 @@ import logging
 import os
 import threading
 import time
+from typing import Any
 
 import httpx
 import psycopg
@@ -26,11 +27,50 @@ ERROR_STATUSES = {'rate_limited', 'unavailable', 'auth_failed'}
 QUIET_STATUSES = {'false_positive', 'official', 'resolved'}
 
 
+def _env_ms(name, default):
+    return max(0, int(os.getenv(name) or default))
+
+
+def connect_timeout_seconds():
+    """libpq connect_timeout from DATABASE_CONNECT_TIMEOUT_MS (default 8000, the same as the Node pool). libpq needs whole seconds, at least 2."""
+    ms = _env_ms('DATABASE_CONNECT_TIMEOUT_MS', 8000)
+    return max(2, -(-ms // 1000)) if ms else 0
+
+
+def statement_timeout_ms():
+    """Per-statement limit from DATABASE_STATEMENT_TIMEOUT_MS (default 30000; 0 turns it off)."""
+    return _env_ms('DATABASE_STATEMENT_TIMEOUT_MS', 30000)
+
+
+class TimeoutCursor(psycopg.Cursor):
+    """Sets statement_timeout for each transaction with set_config(..., is_local => true).
+
+    Neon's pooled endpoint runs PgBouncer in transaction mode, where session SET is not supported and unknown
+    startup parameters may be refused, so the limit is applied inside every transaction instead. It resets at
+    COMMIT or ROLLBACK and never leaks to other clients of a pooled server connection. A statement that runs too
+    long raises psycopg.errors.QueryCanceled; the transaction is aborted and `with connect()` rolls it back."""
+
+    def execute(self, query, params=None, **kwargs):
+        conn = self.connection
+        limit = getattr(conn, 'statement_timeout_ms', 0)
+        if limit and not conn.autocommit and conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE:
+            super().execute("SELECT set_config('statement_timeout', %s, true)", (f'{int(limit)}ms',))
+        return super().execute(query, params, **kwargs)
+
+
+class TimeoutConnection(psycopg.Connection[Any]):
+    statement_timeout_ms = 0
+
+
 def connect(url=None):
     url = url or os.getenv('DATABASE_URL')
     if not url:
         raise RuntimeError('DATABASE_URL is not set')
-    return psycopg.connect(url, row_factory=dict_row, autocommit=False)
+    seconds = connect_timeout_seconds()
+    options = {'connect_timeout': seconds} if seconds else {}
+    conn = TimeoutConnection.connect(url, row_factory=dict_row, autocommit=False, cursor_factory=TimeoutCursor, **options)
+    conn.statement_timeout_ms = statement_timeout_ms()
+    return conn
 
 
 class PgCache:
@@ -349,14 +389,32 @@ def run_job(engine, scan, url=None):
         stop.set()
 
 
-def run_pending(engine, url=None, budget_seconds=240, max_jobs=10, who=('local', 'worker')):
-    """Queue due scans, then run queued ones until the time budget or job limit is reached."""
-    started, done = time.time(), list[dict]()
+def min_remaining_seconds():
+    """Time a scan needs left in the budget before a worker may claim it (WORKER_MIN_REMAINING_SECONDS, default 90)."""
+    return max(0.0, float(os.getenv('WORKER_MIN_REMAINING_SECONDS', '90')))
+
+
+def can_claim(elapsed, budget_seconds, min_remaining):
+    """True when enough of the budget is left to start another scan.
+
+    The minimum is capped at the budget itself, so a call with a small budget still runs its first scan
+    instead of leaving the queue to stall. Exactly the minimum left is enough."""
+    remaining = budget_seconds - elapsed
+    return remaining > 0 and remaining >= min(min_remaining, budget_seconds)
+
+
+def run_pending(engine, url=None, budget_seconds=240, max_jobs=10, who=('local', 'worker'), min_remaining=None, clock=time.monotonic):
+    """Queue due scans, then run queued ones until the time budget or job limit is reached.
+
+    A scan is only claimed while at least `min_remaining` seconds of the budget are left, so a scan is not
+    started just before the platform kills the call. Scans left unclaimed stay queued for the next call."""
+    min_remaining = min_remaining_seconds() if min_remaining is None else min_remaining
+    started, done = clock(), list[dict]()
     with connect(url) as conn:
         touch_worker(conn, f"{who[1]}:{who[0]}", who[1])
         queued = enqueue_due_scans(conn)
         reaped = reap_stale(conn)
-    while len(done) < max_jobs and time.time() - started < budget_seconds:
+    while len(done) < max_jobs and can_claim(clock() - started, budget_seconds, min_remaining):
         with connect(url) as conn:
             scan = claim(conn)
         if not scan:

@@ -441,3 +441,117 @@ def test_training_feedback_only_uses_live_rows_with_enough_of_both_classes(db, m
         _feedback(conn, 'live', 0, 1)
     X, y, report = train.load_feedback()
     assert len(y) == 11 and sum(y) == 6 and report['used'] is True and report['eligible'] == 11
+
+
+# ---------- execution-budget guard and statement timeouts ----------
+
+def ticking(*times):
+    """A clock that returns the given readings in order (run_pending reads it once at start, then before each claim)."""
+    readings = iter(times)
+    return lambda: next(readings)
+
+
+def scan_row(db, scan_id):
+    with jobs.connect(db) as conn:
+        return conn.execute('SELECT status, attempts, started_at, finished_at FROM scans WHERE id=%s', (scan_id,)).fetchone()
+
+
+def test_budget_guard_runs_a_scan_while_enough_time_is_left_and_leaves_the_next_one_queued(db, engine):
+    with jobs.connect(db) as conn:
+        first = queue(conn, add_brand(conn))
+        second = queue(conn, add_brand(conn, name='Other'))
+    # start 0, check 0 (100 s left: claim), check 20 (80 s left, under the 90 s minimum: stop)
+    result = jobs.run_pending(engine, db, budget_seconds=100, min_remaining=90, clock=ticking(0, 0, 20))
+    assert [r['scanId'] for r in result['ran']] == [first]
+    row = scan_row(db, second)
+    assert row['status'] == 'queued' and row['attempts'] == 0 and row['started_at'] is None and row['finished_at'] is None
+    # The next call picks it up: an unclaimed scan is not lost.
+    result = jobs.run_pending(engine, db, budget_seconds=100, min_remaining=90, clock=ticking(0, 0, 50))
+    assert result['ran'] == [{'scanId': second, 'status': 'succeeded'}]
+
+
+def test_budget_guard_claims_with_exactly_the_minimum_left(db, engine):
+    with jobs.connect(db) as conn:
+        ids = [queue(conn, add_brand(conn, name=f'Brand {n}')) for n in range(2)]
+    # check 10 leaves exactly 90 s of a 100 s budget: still allowed; check 100 leaves nothing.
+    result = jobs.run_pending(engine, db, budget_seconds=100, min_remaining=90, clock=ticking(0, 0, 10, 100))
+    assert [r['scanId'] for r in result['ran']] == ids
+
+
+def test_budget_guard_claims_nothing_when_too_little_time_is_left(db, engine):
+    with jobs.connect(db) as conn:
+        scan_id = queue(conn, add_brand(conn))
+    assert jobs.run_pending(engine, db, budget_seconds=100, min_remaining=90, clock=ticking(0, 15))['ran'] == []
+    row = scan_row(db, scan_id)
+    assert row['status'] == 'queued' and row['attempts'] == 0 and row['finished_at'] is None
+
+
+def test_budget_guard_leaves_a_stale_scan_alone_and_it_is_recovered_later(db, engine):
+    with jobs.connect(db) as conn:
+        scan_id = queue(conn, add_brand(conn))
+        conn.execute("UPDATE scans SET status='running', attempts=1, heartbeat_at=now() - interval '1 hour' WHERE id=%s", (scan_id,))
+        conn.commit()
+    assert jobs.run_pending(engine, db, budget_seconds=100, min_remaining=90, clock=ticking(0, 50))['ran'] == []
+    row = scan_row(db, scan_id)
+    assert row['status'] == 'running' and row['attempts'] == 1 and row['finished_at'] is None  # not failed, not completed, not re-counted
+    result = jobs.run_pending(engine, db, budget_seconds=100, min_remaining=90, clock=ticking(0, 0, 60))
+    assert result['ran'] == [{'scanId': scan_id, 'status': 'succeeded'}]
+    assert scan_row(db, scan_id)['attempts'] == 2
+
+
+def test_budget_guard_keeps_retry_then_fail_behaviour(db, engine, monkeypatch):
+    with jobs.connect(db) as conn:
+        scan_id = queue(conn, add_brand(conn))
+    monkeypatch.setattr(engine, 'scan', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('boom')))
+    # Two attempts fit before the budget runs low; the scan goes back to the queue, not to failed or succeeded.
+    result = jobs.run_pending(engine, db, budget_seconds=100, min_remaining=90, max_jobs=5, clock=ticking(0, 0, 5, 30))
+    assert [r['status'] for r in result['ran']] == ['requeued', 'requeued']
+    row = scan_row(db, scan_id)
+    assert row['status'] == 'queued' and row['attempts'] == 2 and row['finished_at'] is None
+    # The last allowed attempt fails it for good, as before the guard.
+    result = jobs.run_pending(engine, db, budget_seconds=100, min_remaining=90, clock=ticking(0, 0, 30))
+    assert result['ran'] == [{'scanId': scan_id, 'status': 'failed'}]
+    assert scan_row(db, scan_id)['status'] == 'failed'
+
+
+def test_statement_timeout_is_set_per_transaction_and_cancels_long_statements(db, monkeypatch):
+    monkeypatch.setenv('DATABASE_STATEMENT_TIMEOUT_MS', '200')
+    with jobs.connect(db) as conn:
+        assert conn.execute('SHOW statement_timeout').fetchone()['statement_timeout'] == '200ms'
+        conn.commit()
+        assert conn.execute('SHOW statement_timeout').fetchone()['statement_timeout'] == '200ms'  # applied again in the next transaction
+        with pytest.raises(jobs.psycopg.errors.QueryCanceled):
+            conn.execute('SELECT pg_sleep(2)')
+        conn.rollback()
+        assert conn.execute('SELECT 1 AS ok').fetchone()['ok'] == 1  # the connection is usable after a timeout
+        conn.commit()
+        conn.autocommit = True
+        assert conn.execute('SHOW statement_timeout').fetchone()['statement_timeout'] == '0'  # SET LOCAL never outlives a transaction
+
+
+def test_statement_timeout_rolls_back_the_transaction(db, monkeypatch):
+    monkeypatch.setenv('DATABASE_STATEMENT_TIMEOUT_MS', '200')
+    with jobs.connect(db) as conn:
+        brand_id = add_brand(conn)
+    with pytest.raises(jobs.psycopg.errors.QueryCanceled):
+        with jobs.connect(db) as conn:
+            conn.execute("UPDATE brands SET name='changed' WHERE id=%s", (brand_id,))
+            conn.execute('SELECT pg_sleep(2)')
+    with jobs.connect(db) as conn:
+        assert conn.execute('SELECT name FROM brands WHERE id=%s', (brand_id,)).fetchone()['name'] == 'Northstar'
+
+
+def test_scan_whose_statement_times_out_is_requeued_not_completed(db, engine, monkeypatch):
+    with jobs.connect(db) as conn:
+        scan_id = queue(conn, add_brand(conn))
+    timeout = jobs.psycopg.errors.QueryCanceled('canceling statement due to statement timeout')
+    monkeypatch.setattr(engine, 'scan', lambda *a, **k: (_ for _ in ()).throw(timeout))
+    assert jobs.run_pending(engine, db, max_jobs=1)['ran'] == [{'scanId': scan_id, 'status': 'requeued'}]
+    row = scan_row(db, scan_id)
+    assert row['status'] == 'queued' and row['finished_at'] is None
+
+
+def test_statement_timeout_can_be_turned_off(db, monkeypatch):
+    monkeypatch.setenv('DATABASE_STATEMENT_TIMEOUT_MS', '0')
+    with jobs.connect(db) as conn:
+        assert conn.execute('SHOW statement_timeout').fetchone()['statement_timeout'] == '0'

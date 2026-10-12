@@ -51,7 +51,9 @@ def load_feedback():
         report['reason'] = 'DATABASE_URL is not set'
         return X, y, report
     import psycopg
-    with psycopg.connect(os.environ['DATABASE_URL']) as conn:
+    from brandml.jobs import connect_timeout_seconds
+    timeout = {'connect_timeout': connect_timeout_seconds()} if connect_timeout_seconds() else {}
+    with psycopg.connect(os.environ['DATABASE_URL'], **timeout) as conn:
         rows = conn.execute('SELECT features, label, mode FROM ml_feedback').fetchall()
     for features, label, mode in rows:
         if mode != 'live':
