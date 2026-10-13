@@ -1,4 +1,4 @@
-# SignalGuard
+# OmniScout
 
 Digital risk protection for brand impersonation. SignalGuard searches app stores, social platforms, the web and the domain space for accounts, apps, pages and domains that imitate a brand, scores each one with a trained model plus explainable phishing indicators, and gives analysts an investigation workflow with evidence, review decisions and an audit trail.
 
