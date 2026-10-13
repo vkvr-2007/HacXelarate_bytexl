@@ -19,7 +19,7 @@ export async function api(path, { method = 'GET', body, query } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError('Cannot reach the SignalGuard API. Check that the server is running.', 0);
+    throw new ApiError('Cannot reach the OmniScout API. Check that the server is running.', 0);
   }
   if (response.status === 204) return null;
   const text = await response.text();

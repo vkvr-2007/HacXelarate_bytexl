@@ -8,3 +8,7 @@ __pycache__/
 ml/models/*.joblib
 !ml/models/brandml.joblib
 ml/data/feedback.jsonl
+
+.vercel
+.env*
+!.env.example

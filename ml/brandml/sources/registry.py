@@ -9,6 +9,7 @@ the time they were collected.
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
+from . import apidirect
 from .appstores import AppStoreCollector, GooglePlayCollector
 from .base import SourceError, env, timeout
 from .demo import DemoCollector
@@ -24,6 +25,7 @@ ALL_COLLECTORS = [
     AppStoreCollector(), GooglePlayCollector(),
     BlueskyCollector(), MastodonCollector(), YouTubeCollector(), RedditCollector(),
     XCollector(), InstagramCollector(), ThreadsCollector(), FacebookPagesCollector(),
+    *apidirect.COLLECTORS,
     TikTokCollector(), LinkedInCollector(), TelegramCollector(),
     WebSearchCollector(), LookalikeDomainCollector(), CertTransparencyCollector(),
 ]

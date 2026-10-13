@@ -97,6 +97,38 @@ Tests after Phase 5: 113 JS, 136 Python, lint/types clean, build clean.
 
 Tests at the end: 124 JS, 137 Python, lint/types/build clean.
 
+## Hackathon plan, Phase One: API Direct (2026-10-13)
+
+| Item | Label |
+| --- | --- |
+| `ml/brandml/sources/apidirect.py`: four sources (`apidirect_x`, `_instagram`, `_threads`, `_facebook`), one account search each per scan, same `platform`/IDs as native collectors so dedupe and official exclusion apply | Done+tested (mocked) |
+| Error mapping per apidirect.io/docs/error-handling: 402/spending caps to `rate_limited` (no retry), 401/403 to `auth_failed`, 429 concurrency/upstream and 5xx retried up to 2 times | Done+tested (mocked) |
+| `ml/tests/test_apidirect.py` (30 tests); `npm run test:ml` 154 passed, 31 skipped (DB) | Done |
+| Real API Direct requests | Untested: `APIDIRECT_API_KEY` not in `.env` yet |
+| Post search endpoints (scam posts) | Not built: would double quota use on a 50/month free tier |
+| `npm run test:js` 78 failed: tests default to Postgres on 5432 with no password; local DB is on 5434. No JS changed | Pre-existing, Blocked on `TEST_DATABASE_URL` |
+| `ruff` not installed; `mypy` stops on numpy stubs vs `python_version = 3.11` | Pre-existing |
+
+## Hackathon plan, Phase Two and Three prep (2026-10-13)
+
+| Item | Label |
+| --- | --- |
+| Displayed name OmniScout and owl mark (`src/OwlLogo.jsx`) in header, sign-in, tab title, two messages | Done+tested (35 web tests, build) |
+| `vercel.json` vs Vercel docs (read 2026-10-13): Hobby 300 s max and 2 GB memory, Python bundle 500 MB, cron once a day within the hour | Matches |
+| With `TEST_DATABASE_URL` on local `signalguard_test`: JS 131/131, ML 185/185 | Done |
+| `release:gate` cannot pass here: `ruff` missing, `mypy` stops on numpy stubs, `python3` is 3.14 without the ML deps | Blocked (local tooling) |
+| Neon project, Vercel project, deploy | Blocked on Vaarsh: accounts and approval |
+
+## Hackathon plan, Phase Three: first deploy (2026-10-13)
+
+| Item | Label |
+| --- | --- |
+| API Direct live check ("Revolut"): X 20, Instagram 50, Threads 10, Facebook 7 results; SerpApi 31 | Live-verified |
+| Neon: was empty; 001 to 005 applied over the direct URL | Done |
+| Vercel project `omniscout`, production https://omniscout.vercel.app (CLI deploy from working tree, nothing pushed) | Done |
+| `/api/health` 200 with database ok, ml ok (first call 8.6 s cold); `/api/ml/health` 200; `/api/auth/me` 401; cron 401 without secret, 200 when Vercel triggers it; CSP, HSTS, nosniff present | Live-verified |
+| Sign-in, demo scan, live scan, findings, CSV on the live URL | Not tested: needs Vaarsh to sign in |
+
 ## Roadmap
 
 | Phase | Planned fixes |

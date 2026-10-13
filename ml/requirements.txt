@@ -1,16 +1,3 @@
-# Runtime dependencies of the ML service and worker. scikit-learn is pinned because the
-# committed model (ml/models/brandml.joblib) must be loaded by the version that trained it.
-fastapi==0.143.0
-uvicorn==0.53.0
-pydantic==2.13.5
-scikit-learn==1.9.1
-numpy==2.5.3
-scipy==1.18.1
-joblib==1.6.0
-rapidfuzz==3.14.6
-pillow==12.3.0
-imagehash==4.3.2
-httpx==0.28.1
-google-play-scraper==1.2.7
-psycopg[binary]==3.3.6
-dnspython==2.9.0
+# The runtime dependency list lives in ../requirements.txt, because Vercel's Python bundler reads only the
+# root file and cannot follow "-r" includes.
+-r ../requirements.txt

@@ -37,7 +37,7 @@ There is no long-running worker on Vercel. Scans run when the dashboard calls `/
    `DATABASE_URL='<direct neon url>' npm run db:migrate` (PowerShell: `$env:DATABASE_URL='<direct neon url>'; npm run db:migrate`)
    Migrations keep the connect timeout but run with no statement limit.
 4. **Model artifact.** `ml/models/brandml.joblib` is committed (about 430 KB) because Vercel's filesystem is read-only. Retraining on Vercel is refused with a clear message; retrain locally with `DATABASE_URL` pointing at Neon so reviewer labels are included, commit the new file and redeploy. scikit-learn is pinned to the version that trained it.
-5. **Python bundle size: verify.** A local install of `ml/requirements.txt` is about 343 MB unpacked, measured with pandas included (scipy 138 MB, numpy 56 MB, scikit-learn 46 MB, pillow 20 MB); pandas (40 MB) is not a dependency and would not be bundled. Vercel allows 500 MB for Python functions, so it should fit, but the real number is only known after a preview build. If it does not fit, the fallback is to host the ML service elsewhere, which may cost money and needs your approval first.
+5. **Python bundle size: measured.** The first real build (2026-10-13) made `api/ml.py` **533 MB**, over Vercel's 500 MB Python limit. It deploys with the project env var `VERCEL_SUPPORT_LARGE_FUNCTIONS=1`, which turns on Vercel's large-functions beta (up to 5 GB, no extra plan needed; build log: "enabling large functions (beta)"). The dependency list is in the root `requirements.txt` because Vercel's Python bundler cannot follow a `-r` include; `ml/requirements.txt` includes it.
 6. **Python version: verify.** `.python-version` asks for 3.12 and CI uses 3.12; local development here used 3.13. Check the runtime Vercel picks in the first build log.
 
 **On Hobby:** the cron runs once a day, so `SCHEDULER_CADENCE_MINUTES` stays 1440 (360 if you enable `rescan.yml`) and scans between runs happen only when someone presses Scan. See *Scheduling and scan frequency* above for the capacity this gives. Function duration limits on Hobby may be lower than the 300 s in `vercel.json`: **verify** in the first build. Alerts are off (no `ALERT_WEBHOOK_URL`).
@@ -72,10 +72,12 @@ Set for Production (and Preview only if previews should have their own database)
 | `WORKER_SECRET` | `openssl rand -hex 32` |
 | `CRON_SECRET` | `openssl rand -hex 32` (Vercel Cron sends it as a bearer token) |
 | `NODE_ENV` | `production` |
-| optional | `ALERT_WEBHOOK_URL`, `BRAVE_SEARCH_API_KEY` or `SERPAPI_API_KEY`, `YOUTUBE_API_KEY`, `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, and the gated sources in `.env.example` |
+| optional | `ALERT_WEBHOOK_URL`, `BRAVE_SEARCH_API_KEY` or `SERPAPI_API_KEY`, `YOUTUBE_API_KEY`, `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `APIDIRECT_API_KEY`, and the gated sources in `.env.example` |
 | optional tuning | `CRON_MAX_JOBS` (3), `WORKER_BUDGET_SECONDS` (240), `WORKER_MIN_REMAINING_SECONDS` (90), `SCHEDULER_CADENCE_MINUTES` (1440 on Vercel), `DATABASE_CONNECT_TIMEOUT_MS` (8000), `DATABASE_STATEMENT_TIMEOUT_MS` (30000) |
 
 **YouTube quota.** The collector makes one `search.list` call per query, up to `MAX_QUERIES_PER_SOURCE` (4) per scan. `PREDEPLOY_AUDIT.md` reports that Google's quota page (read 2026-10-12, not re-checked here) gives `search.list` a default of 100 calls a day. The older wording, 10,000 units a day at 100 units per search, also gives 100 searches. Either way that is about **25 YouTube scans a day** per Google Cloud project. Past it the source reports an error for the rest of the day. The in-app description in `ml/brandml/sources/social.py` still uses the older units wording.
+
+**API Direct quota.** `APIDIRECT_API_KEY` turns on four sources (`apidirect_x`, `apidirect_instagram`, `apidirect_threads`, `apidirect_facebook`), each calling one account-search endpoint once per scan. API Direct's pricing page (read 2026-10-13) gives 50 free requests per endpoint per month with no card, then $0.006 to $0.008 per request once a payment method is added. That is about **50 scans a month** with all four on. When the free tier is used up the source reports `rate_limited` until the 1st of the month. Scheduled rescans of several brands use it up faster, so turn these sources off for brands that do not need them.
 
 Mark every secret as Sensitive. Never put them in `vercel.json`, the repository or build logs.
 

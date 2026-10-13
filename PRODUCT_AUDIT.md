@@ -94,3 +94,8 @@ No defect found that gives unauthenticated data access or code execution. Closes
 ## Status after Phase 7
 
 Open questions about Vercel (rewrite path, bundle size, Python version, Deployment Protection, cron cadence) are prepared and locally checked where possible; all remain **Untested** on Vercel. Known limits: rate limit is per process, single tenant, live sources unverified here.
+
+## Addendum 2026-10-13: API Direct
+
+- X, Instagram, Threads and Facebook Pages can now also be searched through API Direct (third-party provider, key `APIDIRECT_API_KEY`). Free tier is 50 requests per endpoint per month; source reports `rate_limited` when used up. Mocked only; no live request made yet.
+- API Direct collects platform data as a third party, not through each platform's own API. Whether that fits Meta's and X's terms for this use is the user's call; the native, approval-gated collectors are unchanged.

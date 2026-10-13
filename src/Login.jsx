@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import OwlLogo from './OwlLogo.jsx';
 import { api } from './api.js';
 import { ErrorBanner, card, input, primary } from './ui.jsx';
 
@@ -26,7 +26,7 @@ export default function Login({ onSignedIn }) {
   return (
     <main className="min-h-screen flex items-center justify-center p-4">
       <form onSubmit={submit} className={`${card} w-full max-w-sm space-y-4`} aria-label="Sign in">
-        <div className="flex items-center gap-2 text-white font-extrabold text-lg"><ShieldCheck className="text-indigo-400" /> SignalGuard</div>
+        <div className="flex items-center gap-2 text-white font-extrabold text-lg"><OwlLogo className="text-indigo-400" /> OmniScout</div>
         <p className="text-sm text-slate-400">Sign in to review brand impersonation findings.</p>
         <label className="block text-sm text-slate-300">Email
           <input className={`${input} mt-1`} type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />

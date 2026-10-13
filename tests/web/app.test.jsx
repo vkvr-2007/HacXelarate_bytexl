@@ -126,7 +126,7 @@ describe('dashboard', () => {
   it('shows an error when the API is unreachable', async () => {
     routes['GET /api/brands'] = () => Promise.reject(new TypeError('Failed to fetch'));
     render(<App />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the SignalGuard API');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the OmniScout API');
   });
 
   it('shows field errors from brand validation', async () => {

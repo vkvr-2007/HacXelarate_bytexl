@@ -20,7 +20,7 @@ export default function Sources() {
   return (
     <div className="space-y-4 max-w-6xl">
       <h1 className="text-2xl font-bold text-white">Source health</h1>
-      <p className="text-sm text-slate-400">Every source SignalGuard knows about, what access it needs, and how it did on the last scan that used it. Unsupported platforms are listed so the gaps are visible.</p>
+      <p className="text-sm text-slate-400">Every source OmniScout knows about, what access it needs, and how it did on the last scan that used it. Unsupported platforms are listed so the gaps are visible.</p>
       <ErrorBanner error={error || (data?.mlError && new Error(`Source catalogue unavailable: ${data.mlError}`))} onRetry={load} />
       {!data ? <Spinner label="Loading sources" /> : Object.entries(groups).map(([category, sources]) => (
         <section key={category} className="space-y-2">

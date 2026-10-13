@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { Activity, KeyRound, Building2, Database, FlaskConical, LayoutDashboard, ListChecks, LogOut, Plus, ShieldCheck, Users } from 'lucide-react';
+import { Activity, KeyRound, Building2, Database, FlaskConical, LayoutDashboard, ListChecks, LogOut, Plus, Users } from 'lucide-react';
+import OwlLogo from './OwlLogo.jsx';
 import { api } from './api.js';
 import Login from './Login.jsx';
 import BrandSettings from './pages/BrandSettings.jsx';
@@ -85,7 +86,7 @@ export default function App() {
   return (
     <div className="min-h-screen lg:flex">
       <aside className="lg:w-64 lg:min-h-screen border-b lg:border-b-0 lg:border-r border-slate-800 bg-slate-950/80 p-4 space-y-4">
-        <div className="flex items-center gap-2 font-extrabold text-white"><ShieldCheck className="text-indigo-400" size={20} /> SignalGuard</div>
+        <div className="flex items-center gap-2 font-extrabold text-white"><OwlLogo className="text-indigo-400" size={20} /> OmniScout</div>
         <div>
           <label htmlFor="brand-select" className="text-[11px] uppercase tracking-wide text-slate-400">Brand</label>
           {brands === null ? <Spinner /> : brands.length ? (
